@@ -1,11 +1,10 @@
 """
 Basic Features:
 1. Playback controls
-    Play, Pause, Stop, Next, Previous, Rewind
+    Play, Pause, Stop, Next, Previous
 2. Song Information Display
-    Song Title, Artist, Album, Duration
+    Song Title, Artist
 """
-# In terminal: pip install pygame
 
 # Importing Required Libraries
 import tkinter as tk
@@ -26,7 +25,11 @@ class MusicPlayer:
         # Initialization
         mixer.init()
         self.song_list = []
+        self.track_sec = []
         self.current_song_index = 0
+        self.current_pos = 0.000001
+        self.autoplay_enabled = True
+        self.PAUSE_FLAG = True
 
         # Create GUI
         self.create_widgets()
@@ -36,59 +39,68 @@ class MusicPlayer:
 
     # Create GUI organization
     def create_widgets(self):
+        # Create tabs
+        self.music_frame = tk.Frame(self.notebook)
+        self.notebook.add(self.music_frame, text="Music Player")
+
+        self.playlist_queue_frame = tk.Frame(notebook)
+        self.notebook.add(self.playlist_queue_frame, text="Playlist Queue")
+
         # Album art
         self.album_image = tk.PhotoImage(file='./imgs/music.png')
-        self.album_label = ttk.Label(self.root, image=self.album_image)
+        self.album_label = ttk.Label(self.music_frame, image=self.album_image)
         self.album_label.grid(column=0, row=0, columnspan=3, pady=10, padx=10)
 
         # Song Information
-        self.song_title_label = ttk.Label(self.root, text="Song Title", font=('Courier', 12), wraplength=500, justify="center")
+        self.song_title_label = ttk.Label(self.music_frame, text="Song Title", font=('Courier', 12), wraplength=500, justify="center")
         self.song_title_label.grid(column=0, row=1, columnspan=3)
-        self.artist_label = ttk.Label(self.root, text="Artist", font=('Courier', 10))
+        self.artist_label = ttk.Label(self.music_frame, text="Artist", font=('Courier', 10))
         self.artist_label.grid(column=0, row=2, columnspan=3)
 
         # Progress bar
         self.progress_var = self.song_length = tk.DoubleVar()
-        self.progress_bar = ttk.Scale(self.root, variable=self.progress_var, orient="horizontal", length=440)
+        self.progress_bar = ttk.Scale(self.music_frame, variable=self.progress_var, orient="horizontal", length=440)
         self.progress_bar.grid(column=0, row=3, columnspan=3, pady=10, padx=20, sticky='we')
 
         # Rewind button
         #self.rewind_icon = tk.PhotoImage(file="./imgs/rewind.png", width=50, height=50)
-        #self.rewind_button = ttk.Button(self.root, image=self.rewind_icon, command=self.rewind_music)
+        #self.rewind_button = ttk.Button(self.music_frame, image=self.rewind_icon, command=self.rewind_music)
         #self.rewind_button.grid(column=2, row=2, padx=10, sticky='e')
 
         # Play/Pause button
-        self.play_pause_btn = ttk.Button(self.root, text="Play", command=self.play_pause_music)
+        self.play_pause_btn = ttk.Button(self.music_frame, text="Play", command=self.play_pause_music)
         self.play_pause_btn.grid(column=1, row=4, pady=10, sticky='ew')
 
         # Next and Previous buttons
-        self.previous_btn = ttk.Button(self.root, text="Previous", command=self.play_previous)
+        self.previous_btn = ttk.Button(self.music_frame, text="Previous", command=self.play_previous)
         self.previous_btn.grid(column=0, row=4, padx=10, sticky='ew')
-        self.next_btn = ttk.Button(self.root, text="Next", command=self.play_next)
+        self.next_btn = ttk.Button(self.music_frame, text="Next", command=self.play_next)
         self.next_btn.grid(column=2, row=4, padx=10, sticky='ew')
 
         # Browse songs button
-        self.browse_btn = ttk.Button(self.root, text="Add Songs", command=self.select_folder)
-        self.browse_btn.grid(column=0, row=5, columnspan=3, pady=5,padx=18,  sticky='ew')
+        self.browse_btn = ttk.Button(self.music_frame, text="Choose Playlist", command=self.select_folder)
+        self.browse_btn.grid(column=0, row=5, columnspan=2, pady=5,padx=18,  sticky='ew')
+
+        # Add songs to Queue
+        self.queue_btn = ttk.Button(self.music_frame, text="Add Songs", command=self.add_music)
+        self.queue_btn.grid(column=2, row=5, pady=5, padx=18, sticky='ew')
+
+        # Album art
+        self.temp_image = tk.PhotoImage(file='./imgs/soon.png')
+        self.temp_label = ttk.Label(self.playlist_queue_frame, image=self.temp_image)
+        self.temp_label.grid(column=0, row=0, columnspan=3, pady=10, padx=10)
 
         # Apply Theme
         sv_ttk.use_light_theme()
 
     # Player Functionalities
-
     # Add music to queue
     def add_music(self):
         files = filedialog.askopenfilenames(filetypes=[("MP3 files", "*.mp3")])
         for file in files:
             self.song_list.append(file)
-        #self.create_playlist_queue()
-        self.update_song_info()
-        self.load_and_play()
 
-    # Create Playlist Queue
-    #def create_playlist_queue(self):
-
-    # Open all songs in a directoru
+    # Open all songs in a directory
     def select_folder(self):
         music_dir = filedialog.askdirectory()
         if music_dir:
@@ -96,7 +108,6 @@ class MusicPlayer:
             for filename in glob.glob(os.path.join(music_dir, "*.mp3")):
                 current_path = re.sub(r"\\", "/", os.path.normpath(filename))
                 self.song_list.append(current_path)
-            print(f"{self.song_list}\n{self.current_song_index}\n{self.song_list[self.current_song_index]}")
             self.update_song_info()
             self.load_and_play()
 
@@ -126,7 +137,6 @@ class MusicPlayer:
         audio_file = eyed3.load(self.song_list[self.current_song_index])
         for image in audio_file.tag.images:
             image_file = open("./imgs/album_art.png", "wb")
-            print(image)
             image_file.write(image.image_data)
             image_file = cv2.imread("./imgs/album_art.png")
             try:
@@ -142,11 +152,13 @@ class MusicPlayer:
     def play_pause_music(self):
         if mixer.music.get_busy():
             mixer.music.pause()
+            self.PAUSE_FLAG = True
             self.play_pause_btn.configure(text="Play")
         else:
             if self.song_list:
                 mixer.music.pause()
                 mixer.music.unpause()
+                self.PAUSE_FLAG = False
                 self.play_pause_btn.configure(text="Pause")
             else:
                 self.song_title_label.configure(text="No Song in Queue. Press Add songs to add a file to play")
@@ -172,21 +184,40 @@ class MusicPlayer:
             self.update_song_info()
             self.worker()
 
+    # Autoplay next song in queue
+    def autoplay(self):
+        if self.autoplay_enabled and self.PAUSE_FLAG == False:
+            self.current_song_index = (self.current_song_index + 1) % len(self.song_list)
+            self.load_and_play()
+
     # Rewind 15 sec
     def rewind_music(self):
         if mixer.music.get_busy():
-            current_pos = mixer.music.get_pos() / 1000.0
-            new_pos = max(0, int(current_pos - 15))
+            self.current_pos = mixer.music.get_pos() / 1000.0
+            new_pos = max(0, int(self.current_pos - 15))
             mixer.music.play(start=new_pos)
+
+    # Control song playback
+    def track_cursor(self):
+        self.track_sec.append(self.progress_var.get())
+        if len(self.track_sec) > 2:
+            self.track_sec = self.track_sec[1:]
+            #print(self.track_sec)
+            if self.track_sec[1] - self.track_sec[0] > 0.2:
+                mixer.music.play(start=int(self.track_sec[1]))
+        #self.root.after(2000, self.track_cursor)
 
     # Show progress bar
     def update_progress_bar(self):
         if mixer.music.get_busy():
             self.song_length = MP3(self.song_list[self.current_song_index]).info.length
-            current_pos = mixer.music.get_pos() / 1000.0
-            self.progress_var.set(current_pos / self.song_length)
-            #print(self.progress_var.get())
+            self.current_pos = mixer.music.get_pos() / 1000.0
+            self.progress_var.set(self.current_pos / self.song_length)
+            self.track_cursor()
+            #print(f"current position = {self.progress_var.get()}, total length = {self.song_length}")
             self.root.after(1000, self.update_progress_bar)
+        else:
+            self.autoplay()
 
     # Running background function in a daemon thread
     def worker(self):
@@ -194,22 +225,20 @@ class MusicPlayer:
         t.start()
 
 
+
 if __name__ == "__main__":
     # Main Player Window
     root = tk.Tk()
     root.title('Task 2: Music Player')
     root.resizable(False, False)
-    root.minsize(552, 770)
+    root.minsize(532, 770)
 
-    # Music Player interface Tab
+    # Notebook Widget
     notebook = ttk.Notebook(root)
     notebook.pack(expand=True, fill="both")
-    music_frame = tk.Frame(notebook)
-    music_player = MusicPlayer(music_frame, notebook)
-    notebook.add(music_frame, text="Music Player")
 
-    # Playlist Queue Interface Tab
-    playlist_queue_frame = tk.Frame(notebook)
-    notebook.add(playlist_queue_frame, text="Playlist Queue")
+    # Music Player Instance
+    music_player = MusicPlayer(root, notebook)
+
     root.mainloop()
 
